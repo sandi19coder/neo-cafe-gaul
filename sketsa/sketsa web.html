@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="id" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Neo Cafe - Order Online</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background:#111827; color:white; -webkit-tap-highlight-color: transparent; }
+    
+    /* Animasi Kartu Menu */
+    .menu-card { transition: all 0.2s ease; }
+    .menu-card:active { transform: scale(0.98); }
+    
+    /* Scrollbar Sembunyi tapi bisa scroll */
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Tombol Kategori Aktif */
+    .cat-btn.active { background-color: #9333ea; border-color: #9333ea; color: white; }
+  </style>
+</head>
+
+<body class="h-full flex flex-col">
+
+<header class="bg-gray-900 border-b border-gray-800 sticky top-0 z-30 shadow-lg">
+  <div class="max-w-xl mx-auto px-4 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <div class="bg-purple-600 p-1.5 rounded-lg">☕</div>
+      <h1 class="font-bold text-lg tracking-wide">Neo Cafe</h1>
+    </div>
+
+    <button id="cart-btn" onclick="toggleCart()" class="relative bg-gray-800 hover:bg-gray-700 p-2.5 rounded-xl border border-gray-700 transition-colors">
+      🛒
+      <span id="cart-count" class="hidden absolute -top-2 -right-2 bg-pink-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-gray-900">0</span>
+    </button>
+  </div>
+</header>
+
+<main class="flex-1 p-4 max-w-xl mx-auto w-full pb-24">
+  
+  <div class="sticky top-[73px] z-20 bg-[#111827]/95 backdrop-blur-sm py-2 mb-2">
+    <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <button onclick="setCategory('all')" id="cat-all" class="cat-btn active px-4 py-2 rounded-full bg-gray-800 text-sm font-medium whitespace-nowrap border border-gray-700 transition-colors">
+        Semua
+      </button>
+      <button onclick="setCategory('coffee')" id="cat-coffee" class="cat-btn px-4 py-2 rounded-full bg-gray-800 text-sm font-medium whitespace-nowrap border border-gray-700 transition-colors">
+        ☕ Kopi
+      </button>
+      <button onclick="setCategory('non_coffee')" id="cat-non_coffee" class="cat-btn px-4 py-2 rounded-full bg-gray-800 text-sm font-medium whitespace-nowrap border border-gray-700 transition-colors">
+        🥤 Non Kopi
+      </button>
+      <button onclick="setCategory('food')" id="cat-food" class="cat-btn px-4 py-2 rounded-full bg-gray-800 text-sm font-medium whitespace-nowrap border border-gray-700 transition-colors">
+        🍛 Makanan
+      </button>
+      <button onclick="setCategory('snack')" id="cat-snack" class="cat-btn px-4 py-2 rounded-full bg-gray-800 text-sm font-medium whitespace-nowrap border border-gray-700 transition-colors">
+        🍟 Snack
+      </button>
+    </div>
+  </div>
+
+  <div id="menu-grid" class="grid grid-cols-2 gap-4"></div>
+</main>
+
+<div id="cart-overlay" onclick="closeCart()" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-40 transition-opacity"></div>
+
+<div id="cart-drawer" class="fixed bottom-0 left-0 right-0 bg-gray-900 z-50 translate-y-full transition-transform duration-300 max-h-[90%] flex flex-col rounded-t-3xl border-t border-gray-800 shadow-2xl max-w-xl mx-auto">
+
+  <div class="p-5 border-b border-gray-800 flex justify-between items-center">
+    <div>
+      <h2 class="font-bold text-lg">Keranjang Saya</h2>
+      <p class="text-xs text-gray-400">Pastikan pesanan sudah benar</p>
+    </div>
+    <button onclick="closeCart()" class="bg-gray-800 p-2 rounded-full text-gray-400 hover:text-white">✕</button>
+  </div>
+
+  <div id="cart-items" class="flex-1 overflow-auto p-5 space-y-4"></div>
+
+  <div class="p-5 border-t border-gray-800 bg-gray-900">
+    <div class="space-y-2 mb-4 text-sm">
+      <div class="flex justify-between text-gray-400">
+        <span>Subtotal</span>
+        <span id="subtotal" class="text-white">Rp 0</span>
+      </div>
+      <div class="flex justify-between text-gray-400">
+        <span>Biaya Layanan</span>
+        <span class="text-white">Rp 2.000</span>
+      </div>
+    </div>
+    
+    <div class="flex justify-between font-bold text-xl mb-4 items-end">
+      <span>Total</span>
+      <span id="cart-total" class="text-purple-400">Rp 0</span>
+    </div>
+
+    <button id="checkout-btn" onclick="checkout()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 py-3.5 rounded-xl font-bold shadow-lg shadow-purple-900/50 transition-all active:scale-[0.98]">
+      Pesan Sekarang
+    </button>
+  </div>
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const SERVICE_FEE = 2000;
+
+// PERUBAHAN: 'emoji' diganti dengan URL 'image'
+const menuData = [
+  // COFFEE
+  { id: 'esp', name: 'Espresso', price: 18000, image: 'expresso.jpeg', category: 'coffee' },
+  { id: 'lat', name: 'Caffe Latte', price: 28000, image: 'caffelatte.jpeg', category: 'coffee' },
+  { id: 'cap', name: 'Cappuccino', price: 28000, image: 'capucino.jpeg', category: 'coffee' },
+  { id: 'moc', name: 'Mocha', price: 30000, image: 'mocha.jpeg', category: 'coffee' },
+  { id: 'ame', name: 'Americano', price: 22000, image: 'americano.jpeg', category: 'coffee' },
+  
+  // NON COFFEE
+  { id: 'mat', name: 'Matcha Latte', price: 32000, image: 'matcha.jpeg', category: 'non_coffee' },
+  { id: 'choc', name: 'Iced Chocolate', price: 28000, image: 'coklat.jpeg', category: 'non_coffee' },
+  { id: 'tea', name: 'Lemon Tea', price: 18000, image: 'lemon.jpeg', category: 'non_coffee' },
+
+  // FOOD
+  { id: 'bur', name: 'Beef Burger', price: 45000, image: 'burger.jpeg', category: 'food' },
+  { id: 'nas', name: 'Nasi Goreng', price: 35000, image: 'nasgor.jpeg', category: 'food' },
+  { id: 'pas', name: 'Carbonara', price: 42000, image: 'spageti.jpeg', category: 'food' },
+
+  // SNACK
+  { id: 'fri', name: 'French Fries', price: 20000, image: 'kentang.jpeg', category: 'snack' },
+  { id: 'cro', name: 'Croissant', price: 25000, image: 'croissant.jpeg', category: 'snack' },
+  { id: 'waf', name: 'Waffle Ice', price: 30000, image: 'waffel.jpeg', category: 'snack' },
+];
+
+/* ===================== STATE ===================== */
+let cart = [];
+let cartData = [];
+let isLoading = false;
+let activeCategory = 'all';
+
+/* ===================== SDK ===================== */
+const dataHandler = {
+  onDataChanged(data) {
+    cartData = data.filter(i => i.order_status === 'cart');
+    syncCart();
+  }
+};
+
+async function init() {
+  if (window.dataSdk) await window.dataSdk.init(dataHandler);
+  renderMenu();
+}
+
+init();
+
+/* ===================== UTIL ===================== */
+const rupiah = n => 'Rp ' + n.toLocaleString('id-ID');
+
+function totalQty() {
+  return cart.reduce((s,i) => s + i.quantity, 0);
+}
+
+/* ===================== MENU & CATEGORY ===================== */
+function setCategory(cat) {
+  activeCategory = cat;
+  document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`cat-${cat}`).classList.add('active');
+  renderMenu();
+}
+
+function renderMenu() {
+  const menuGrid = document.getElementById('menu-grid');
+  
+  const filteredData = activeCategory === 'all' 
+    ? menuData 
+    : menuData.filter(i => i.category === activeCategory);
+
+  if (filteredData.length === 0) {
+    menuGrid.innerHTML = `
+      <div class="col-span-2 text-center py-12 text-gray-500">
+        <div class="text-4xl mb-2">🤔</div>
+        <p>Menu tidak ditemukan</p>
+      </div>`;
+    return;
+  }
+
+  // PERUBAHAN: Merubah struktur kartu untuk menampilkan Gambar
+  menuGrid.innerHTML = filteredData.map(i => `
+    <div class="menu-card bg-gray-800 rounded-2xl border border-gray-700 flex flex-col h-full overflow-hidden group">
+      
+      <div class="relative h-36 w-full overflow-hidden bg-gray-900">
+         <img src="${i.image}" alt="${i.name}" loading="lazy"
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+      </div>
+      
+      <div class="p-4 flex flex-col justify-between flex-1">
+        <div>
+          <h3 class="font-bold text-white leading-tight mb-1">${i.name}</h3>
+          <p class="text-sm text-purple-300 font-medium">${rupiah(i.price)}</p>
+        </div>
+
+        <button onclick="quickAdd('${i.id}')" 
+          class="mt-4 bg-gray-700 hover:bg-purple-600 text-white w-full rounded-xl py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 group-active:scale-95">
+          <span>+</span> Tambah
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ===================== CART LOGIC ===================== */
+function syncCart() {
+  cart = cartData.map(i => ({
+    ...i,
+    menu: menuData.find(m => m.id === i.menu_item_id)
+  })).filter(i => i.menu);
+
+  renderCart();
+  updateBadge();
+}
+
+function updateBadge() {
+  const badge = document.getElementById('cart-count');
+  const qty = totalQty();
+  badge.textContent = qty;
+  badge.classList.toggle('hidden', qty === 0);
+  
+  if(qty > 0) {
+    badge.classList.add('scale-125');
+    setTimeout(() => badge.classList.remove('scale-125'), 150);
+  }
+}
+
+function renderCart() {
+  const el = document.getElementById('cart-items');
+  const subtotalEl = document.getElementById('subtotal');
+  const totalEl = document.getElementById('cart-total');
+  const checkoutBtn = document.getElementById('checkout-btn');
+
+  if (!cart.length) {
+    el.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-10 opacity-40 text-center">
+        <div class="bg-gray-800 p-6 rounded-full mb-4 text-4xl">🛒</div>
+        <p class="font-medium">Keranjang kosong</p>
+      </div>`;
+    
+    subtotalEl.textContent = 'Rp 0';
+    totalEl.textContent = 'Rp 0';
+    checkoutBtn.disabled = true;
+    checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    return;
+  }
+
+  checkoutBtn.disabled = false;
+  checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+  // PERUBAHAN: Menampilkan thumbnail gambar di keranjang
+  el.innerHTML = cart.map(i => `
+    <div class="bg-gray-800 p-3 rounded-2xl flex justify-between items-center border border-gray-700 shadow-sm">
+      <div class="flex items-center gap-3 overflow-hidden">
+        <img src="${i.menu.image}" alt="${i.menu.name}" class="h-12 w-12 rounded-lg object-cover border border-gray-700" onerror="this.src='https://via.placeholder.com/100?text='">
+        <div class="truncate">
+          <div class="font-bold text-sm text-white truncate">${i.menu.name}</div>
+          <div class="text-xs text-purple-400 font-medium">${rupiah(i.menu.price * i.quantity)}</div>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3 bg-gray-900 rounded-lg p-1 border border-gray-700 shrink-0">
+        <button class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white font-bold active:scale-75 transition-transform" onclick="changeQty('${i.__backendId}', -1)">-</button>
+        <span class="text-sm font-bold w-4 text-center select-none">${i.quantity}</span>
+        <button class="w-7 h-7 flex items-center justify-center text-purple-400 hover:text-purple-300 font-bold active:scale-75 transition-transform" onclick="changeQty('${i.__backendId}', 1)">+</button>
+      </div>
+    </div>
+  `).join('');
+
+  const subtotal = cart.reduce((s, i) => s + (i.menu.price * i.quantity), 0);
+  subtotalEl.textContent = rupiah(subtotal);
+  totalEl.textContent = rupiah(subtotal + SERVICE_FEE);
+}
+
+/* ===================== ACTIONS ===================== */
+async function quickAdd(id) {
+  if (isLoading) return;
+  isLoading = true;
+  updateBadge(); 
+
+  const existingItem = cart.find(i => i.menu_item_id === id);
+
+  if (existingItem) {
+    await window.dataSdk.update({
+      ...existingItem,
+      quantity: existingItem.quantity + 1
+    });
+  } else {
+    await window.dataSdk.create({
+      menu_item_id: id,
+      quantity: 1,
+      price: menuData.find(m => m.id === id).price,
+      order_status: 'cart'
+    });
+  }
+  isLoading = false;
+}
+
+async function changeQty(backendId, delta) {
+  if (isLoading) return;
+  
+  const item = cart.find(i => i.__backendId === backendId);
+  if (!item) return;
+
+  isLoading = true;
+  if (item.quantity + delta <= 0) {
+    await window.dataSdk.delete(item);
+  } else {
+    await window.dataSdk.update({ ...item, quantity: item.quantity + delta });
+  }
+  isLoading = false;
+}
+
+async function checkout() {
+  if (!cart.length || isLoading) return;
+
+  isLoading = true;
+  const btn = document.getElementById('checkout-btn');
+  const originalText = btn.innerHTML;
+  
+  btn.innerHTML = `<span class="animate-pulse">Memproses...</span>`;
+  await new Promise(r => setTimeout(r, 800));
+
+  try {
+    for (const item of cart) {
+      await window.dataSdk.update({ ...item, order_status: 'ordered' });
+    }
+    closeCart();
+    setTimeout(() => { alert('Pesanan Diterima! Mohon tunggu sebentar ☕'); }, 300);
+  } catch (err) {
+    alert('Gagal memproses pesanan. Coba lagi.');
+  } finally {
+    btn.innerHTML = originalText;
+    isLoading = false;
+  }
+}
+
+/* ===================== UI CONTROLS ===================== */
+function toggleCart() {
+  document.getElementById('cart-drawer').classList.remove('translate-y-full');
+  document.getElementById('cart-overlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCart() {
+  document.getElementById('cart-drawer').classList.add('translate-y-full');
+  document.getElementById('cart-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+</script>
+
+</body>
+</html>
